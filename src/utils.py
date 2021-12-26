@@ -151,7 +151,7 @@ def plot_calibration_curves(model,labelencoder,X_test,y_test_enc,mapping,sectors
     for sector in range(sectors_num):
         prob_pos = model.predict_proba(X_test)[:, sector]
         y_test_plot = [int(sector==num) for num in y_test_enc]
-        fraction_of_positives, mean_predicted_value = calibration_curve(y_test_plot, prob_pos, n_bins=10)
+        fraction_of_positives, mean_predicted_value = calibration_curve(y_test_plot, prob_pos, n_bins=5)
         plt.plot(mean_predicted_value, fraction_of_positives, "s-", label = f"{mapping[sector]}")
         plt.ylabel("The proportion of samples whose class is the positive class")
         plt.xlabel("The mean predicted probability in each bin")
