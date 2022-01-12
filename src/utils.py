@@ -113,14 +113,13 @@ def plot_boxplots(df,useful_features,label,num_rows):
     Args:
         df: Dataframe containing all generated features with stocks tickers and GICS sectors. (dataframe)
         useful_features: A group of chosen features. (str list)
+        label: A column to group by. (str)
         num_rows: Number of rows in subplots. (int)
     """
     plt.style.use('default')
     fig, axs = plt.subplots(ncols=1, nrows = num_rows, figsize=(10,140),constrained_layout=True)
-    #fig.tight_layout()
     axs = axs.flatten()
     i = 0
-    #sns.set(rc={'figure.figsize':(2,10)})
     for feature in useful_features:
         df_temp = df.groupby(label)[feature].apply(list)
         ax = sns.boxplot(data=df_temp, width=.3,orient="h",showmeans=True,
