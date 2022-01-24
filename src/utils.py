@@ -12,8 +12,9 @@ from hurst import compute_Hc
 from tsfresh import extract_features
 from tsfresh.feature_extraction import extract_features, EfficientFCParameters
 from sklearn.model_selection import GridSearchCV
-import xgboost as xgb
 from sklearn.calibration import calibration_curve
+from sklearn.preprocessing import MinMaxScaler
+import xgboost as xgb
 
 
 def download_stocks(directory_data,stocks,start_year,end_year):
@@ -39,7 +40,7 @@ def download_stocks(directory_data,stocks,start_year,end_year):
     return missing_stocks
 
 def load_preprocess(directory_data,directory_inter,df_stocks_filename,tickers_sector):
-    """Loads the data, add columns HL, OC, id, and time, and pickles and returns the resulting dataframe.
+    """Loads the data, add columns HL, OC, id, time, and normalized columns for prices and volume, and pickles and returns the resulting dataframe.
     Args:
         directory_data: Data directory. (str)
         directory_inter: Directory to save the resulting dataframe. (str)
@@ -58,9 +59,13 @@ def load_preprocess(directory_data,directory_inter,df_stocks_filename,tickers_se
         df = pd.read_pickle(os.path.join(directory_data,f'{stock_file}.pkl'))
         df['HL'] = df['High'] - df['Low']
         df['OC'] = df['Open'] - df['Close']
+        # Create normalized columns for prices and volume
+        for feature in ['HL','OC','Adj Close','Volume']:
+            min_max_scaler = MinMaxScaler()
+            df[feature+'_norm'] = min_max_scaler.fit_transform(df[feature].values.reshape(-1, 1))
         df['id'] = stock_file
         df['time'] = df.reset_index().index + 1
-        df_filtered = df[['HL','OC','Adj Close','Volume','id','time']].copy()
+        df_filtered = df[['HL','OC','Adj Close','Volume','HL_norm','OC_norm','Adj Close_norm','Volume_norm','id','time']].copy()
         df_stocks = df_stocks.append({'stock': stock_file, 
                                       'sector': tickers_sector[tickers_sector['Symbol']==stock_file]['GICS Sector'].values[0],
                                       'df': df_filtered},ignore_index=True)
@@ -100,6 +105,10 @@ def feature_generation(df_stocks,fc_parameters,tickers_sector,directory_inter,df
     df_features['Adj Close__hurst'] = df_stocks['df'].apply(lambda stock: compute_Hc(stock['Adj Close'],kind='change')[0])
     df_features['OC__hurst'] = df_stocks['df'].apply(lambda stock: compute_Hc(stock['OC'],kind='change')[0])
     df_features['HL__hurst'] = df_stocks['df'].apply(lambda stock: compute_Hc(stock['HL'],kind='change')[0])
+    df_features['Volume_norm__hurst'] = df_stocks['df'].apply(lambda stock: compute_Hc(stock['Volume_norm'],kind='change')[0])
+    df_features['Adj Close_norm__hurst'] = df_stocks['df'].apply(lambda stock: compute_Hc(stock['Adj Close_norm'],kind='change')[0])
+    df_features['OC_norm__hurst'] = df_stocks['df'].apply(lambda stock: compute_Hc(stock['OC_norm'],kind='change')[0])
+    df_features['HL_norm__hurst'] = df_stocks['df'].apply(lambda stock: compute_Hc(stock['HL_norm'],kind='change')[0])
     
     # Merge df_features and tickers_sector to obtain the GICS sector for each stock
     df_final = pd.merge(df_features,tickers_sector, on=['Symbol','Symbol'],how='inner')
@@ -117,7 +126,7 @@ def plot_boxplots(df,useful_features,label,num_rows):
         num_rows: Number of rows in subplots. (int)
     """
     plt.style.use('default')
-    fig, axs = plt.subplots(ncols=1, nrows = num_rows, figsize=(10,140),constrained_layout=True)
+    fig, axs = plt.subplots(ncols=1, nrows = num_rows, figsize=(10,260),constrained_layout=True)
     axs = axs.flatten()
     i = 0
     for feature in useful_features:
@@ -175,7 +184,7 @@ def train_xgboost(directory_inter,xgboost_filename,params,X_train,y_train_enc):
         xgb_cl = pd.read_pickle(os.path.join(directory_inter,xgboost_filename))
     else:    
         # Initialize classifier
-        xgb_cl = xgb.XGBClassifier()
+        xgb_cl = xgb.XGBClassifier(eval_metric='mlogloss')
 
         # Grid Search for hyperparamter tuning
         grid_search = GridSearchCV(estimator = xgb_cl,
@@ -185,7 +194,7 @@ def train_xgboost(directory_inter,xgboost_filename,params,X_train,y_train_enc):
 
         grid_search.fit(X_train,y_train_enc)
 
-        xgb_cl = xgb.XGBClassifier(**grid_search.best_params_)
+        xgb_cl = xgb.XGBClassifier(eval_metric='mlogloss',**grid_search.best_params_)
         xgb_cl.fit(X_train,y_train_enc)
 
         # Save (pickle) the xgboost model
