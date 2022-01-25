@@ -3,14 +3,13 @@ import os.path
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
-
-import numpy as np                            
+                          
 import pandas as pd
-import yfinance as yf
+import numpy as np
 from pandas_datareader import data as pdr
 from hurst import compute_Hc
 from tsfresh import extract_features
-from tsfresh.feature_extraction import extract_features, EfficientFCParameters
+from tsfresh.feature_extraction import extract_features
 from sklearn.model_selection import GridSearchCV
 from sklearn.calibration import calibration_curve
 from sklearn.preprocessing import MinMaxScaler
